@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Website Question App</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Ask Your Question</h1>
+        <form id="question-form">
+            <label for="question">Question:</label>
+            <input type="text" id="question" name="question" required>
+            
+            <label for="model">Select Model:</label>
+            <select id="model" name="model">
+                <option value="chatgpt">ChatGPT</option>
+                <option value="ollama">Ollama</option>
+            </select>
+            
+            <button type="submit">Submit</button>
+        </form>
+        
+        <div id="response-container">
+            <h2>Response:</h2>
+            <pre id="response"></pre>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('question-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const question = document.getElementById('question').value;
+            const model = document.getElementById('model').value;
+
+            fetch('/ask', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ question: question, model: model })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('response').textContent = data.response;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        });
+    </script>
+</body>
+</html>
