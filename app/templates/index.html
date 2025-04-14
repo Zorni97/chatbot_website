@@ -1,54 +1,87 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Website Question App</title>
+    <title>Ask Chat</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-    <div class="container">
-        <h1>Ask Your Question</h1>
-        <form id="question-form">
-            <label for="question">Question:</label>
-            <input type="text" id="question" name="question" required>
-            
-            <label for="model">Select Model:</label>
-            <select id="model" name="model">
-                <option value="chatgpt">ChatGPT</option>
-                <option value="ollama">Ollama</option>
-            </select>
-            
-            <button type="submit">Submit</button>
-        </form>
-        
-        <div id="response-container">
-            <h2>Response:</h2>
-            <pre id="response"></pre>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h1>Chat Assistant</h1>
+            <button id="newChatBtn">🗑️ New Chat</button>
         </div>
+
+        <div id="conversation" class="chat-box"></div>
+
+        <form class="chat-input-form">
+            <input type="text" name="question" placeholder="Type your message..." autocomplete="off" required>
+            <select name="model">
+                <option value="ChatGPT">ChatGPT</option>
+                <option value="Ollama">Ollama</option>
+            </select>
+            <button type="submit">➤</button>
+        </form>
     </div>
 
     <script>
-        document.getElementById('question-form').addEventListener('submit', function(event) {
-            event.preventDefault();
-            const question = document.getElementById('question').value;
-            const model = document.getElementById('model').value;
+        const form = document.querySelector('form');
+        const conversationDiv = document.getElementById('conversation');
+        const newChatBtn = document.getElementById('newChatBtn');
 
-            fetch('/ask', {
+        form.addEventListener('submit', async function (event) {
+            event.preventDefault();
+            const formData = new FormData(form);
+            const question = formData.get('question');
+            const model = formData.get('model');
+            form.querySelector('input[name="question"]').value = '';
+
+            const userBubble = `<div class="bubble user"><strong>You:</strong> ${question}</div>`;
+            conversationDiv.innerHTML += userBubble;
+            conversationDiv.scrollTop = conversationDiv.scrollHeight;
+
+            const res = await fetch('/ask', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ question: question, model: model })
-            })
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('response').textContent = data.response;
-            })
-            .catch(error => {
-                console.error('Error:', error);
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question, model })
             });
+
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let buffer = '';
+            const answerContainer = document.createElement('div');
+            answerContainer.className = 'bubble assistant';
+            answerContainer.innerHTML = `<strong>Assistant:</strong> <div class="answer-part"></div>`;
+            conversationDiv.appendChild(answerContainer);
+            const partDiv = answerContainer.querySelector('.answer-part');
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n\n');
+                buffer = lines.pop();
+
+                for (let line of lines) {
+                    if (line.startsWith("data: ")) {
+                        const chunk = line.slice(6);
+                        partDiv.innerHTML = chunk;
+                        MathJax.typesetPromise();
+                        conversationDiv.scrollTop = conversationDiv.scrollHeight;
+                    }
+                }
+            }
+        });
+
+        newChatBtn.addEventListener('click', async () => {
+            await fetch('/reset', { method: 'POST' });
+            conversationDiv.innerHTML = '';
         });
     </script>
 </body>
+
 </html>
